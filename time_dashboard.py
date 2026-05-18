@@ -486,7 +486,7 @@ class TimeDashboard(QMainWindow):
             f"font-size: {self.config.ui.header_font_point_size}pt;"
         )
         self.current_time_label.setStyleSheet(
-            f"font-size: {max(8, self.config.ui.header_font_point_size // 2)}pt;"
+            f"font-size: {max(8, self.config.ui.header_font_point_size*0.75)}pt;"
         )
         self.next_day_date_label.setStyleSheet(
             f"font-size: {self.config.ui.font_point_size + 2}pt;"
