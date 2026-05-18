@@ -6,14 +6,16 @@ from datetime import datetime, date, time, timedelta
 from pathlib import Path
 
 from PyQt6.QtCore import QTimer, Qt
-from PyQt6.QtGui import QFont, QFontInfo
+from PyQt6.QtGui import QFont, QFontInfo, QKeySequence, QShortcut
 from PyQt6.QtWidgets import (
     QApplication,
     QComboBox,
     QHBoxLayout,
     QLabel,
     QMainWindow,
+    QMessageBox,
     QProgressBar,
+    QPushButton,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -258,6 +260,23 @@ def apply_application_theme(app: QApplication, ui: UIConfig) -> None:
             {font_family_rule}
         }}
 
+        QPushButton {{
+            background-color: #ffffff;
+            color: #2f2440;
+            border: 1px solid #cfc1e8;
+            border-radius: 6px;
+            padding: 4px 10px;
+            {font_family_rule}
+        }}
+
+        QPushButton:hover {{
+            background-color: #fbf8ff;
+        }}
+
+        QPushButton:pressed {{
+            background-color: #eee4ff;
+        }}
+
         QProgressBar {{
             background-color: #ffffff;
             color: #2f2440;
@@ -276,10 +295,11 @@ def apply_application_theme(app: QApplication, ui: UIConfig) -> None:
 
 
 class TimeDashboard(QMainWindow):
-    def __init__(self, config: AppConfig):
+    def __init__(self, config: AppConfig, config_path: Path):
         super().__init__()
 
         self.config = config
+        self.config_path = config_path
         self.current_date = date.today()
         self.today_slots: list[ClassSlot] = []
 
@@ -288,9 +308,6 @@ class TimeDashboard(QMainWindow):
 
         self.date_label = QLabel()
         self.date_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.date_label.setStyleSheet(
-            f"font-size: {self.config.ui.header_font_point_size}pt;"
-        )
 
         self.class_table = QTableWidget()
         self.class_table.setColumnCount(3)
@@ -303,21 +320,12 @@ class TimeDashboard(QMainWindow):
 
         self.current_class_label = QLabel()
         self.current_class_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.current_class_label.setStyleSheet(
-            f"font-size: {self.config.ui.class_status_font_point_size}pt;"
-        )
 
         self.next_class_label = QLabel()
         self.next_class_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.next_class_label.setStyleSheet(
-            f"font-size: {self.config.ui.class_status_font_point_size}pt;"
-        )
 
         self.countdown_label = QLabel()
         self.countdown_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.countdown_label.setStyleSheet(
-            f"font-size: {self.config.ui.countdown_font_point_size}pt;"
-        )
 
         self.progress_bar = QProgressBar()
         self.progress_bar.setRange(0, 1000)
@@ -326,9 +334,20 @@ class TimeDashboard(QMainWindow):
         self.status_label = QLabel()
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
+        self.config_status_label = QLabel()
+        self.config_status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        self.reload_button = QPushButton("Reload Config")
+        self.reload_button.setToolTip("Reload ~/time_dashboard.yaml (Ctrl+R)")
+        self.reload_button.clicked.connect(self.reload_config)
+
+        self.reload_shortcut = QShortcut(QKeySequence("Ctrl+R"), self)
+        self.reload_shortcut.activated.connect(self.reload_config)
+
         pattern_row = QHBoxLayout()
         pattern_row.addWidget(QLabel("Departure Pattern:"))
         pattern_row.addWidget(self.pattern_combo)
+        pattern_row.addWidget(self.reload_button)
 
         layout = QVBoxLayout()
         layout.addWidget(self.date_label)
@@ -348,11 +367,14 @@ class TimeDashboard(QMainWindow):
         layout.addWidget(QLabel("Progress From Workday Start To Departure"))
         layout.addWidget(self.progress_bar)
         layout.addWidget(self.status_label)
+        layout.addWidget(self.config_status_label)
 
         central = QWidget()
         central.setLayout(layout)
         self.setCentralWidget(central)
 
+        self.apply_ui_sizes()
+        self.set_config_status_loaded(datetime.now())
         self.populate_today_classes()
 
         self.timer = QTimer(self)
@@ -360,6 +382,68 @@ class TimeDashboard(QMainWindow):
         self.timer.start(1000)
 
         self.pattern_combo.currentIndexChanged.connect(self.update_time_display)
+        self.update_time_display()
+
+    def apply_ui_sizes(self) -> None:
+        self.date_label.setStyleSheet(
+            f"font-size: {self.config.ui.header_font_point_size}pt;"
+        )
+        self.current_class_label.setStyleSheet(
+            f"font-size: {self.config.ui.class_status_font_point_size}pt;"
+        )
+        self.next_class_label.setStyleSheet(
+            f"font-size: {self.config.ui.class_status_font_point_size}pt;"
+        )
+        self.countdown_label.setStyleSheet(
+            f"font-size: {self.config.ui.countdown_font_point_size}pt;"
+        )
+
+    def set_config_status_loaded(self, loaded_at: datetime) -> None:
+        self.config_status_label.setText(
+            f"Config loaded: {loaded_at.strftime('%Y-%m-%d %H:%M:%S')}"
+        )
+
+    def rebuild_departure_patterns(self, preferred_key: str | None) -> None:
+        self.pattern_combo.blockSignals(True)
+        self.pattern_combo.clear()
+
+        selected_index = 0
+
+        for index, (key, pattern) in enumerate(self.config.departure_patterns.items()):
+            self.pattern_combo.addItem(pattern.label, key)
+
+            if key == preferred_key:
+                selected_index = index
+
+        if self.pattern_combo.count() > 0:
+            self.pattern_combo.setCurrentIndex(selected_index)
+
+        self.pattern_combo.blockSignals(False)
+
+    def reload_config(self) -> None:
+        previous_key = self.pattern_combo.currentData()
+
+        try:
+            new_config = load_config(self.config_path)
+        except Exception as exc:
+            QMessageBox.critical(
+                self,
+                "Reload Config Failed",
+                f"Could not reload {self.config_path}:\n\n{exc}",
+            )
+            return
+
+        self.config = new_config
+
+        app = QApplication.instance()
+        if app is not None:
+            apply_application_font(app, self.config.ui)
+            apply_application_theme(app, self.config.ui)
+
+        self.apply_ui_sizes()
+        self.rebuild_departure_patterns(str(previous_key) if previous_key else None)
+        self.populate_today_classes()
+        self.set_config_status_loaded(datetime.now())
         self.update_time_display()
 
     def current_departure_pattern(self) -> DeparturePattern:
@@ -538,7 +622,7 @@ def main() -> None:
     apply_application_font(app, config.ui)
     apply_application_theme(app, config.ui)
 
-    window = TimeDashboard(config)
+    window = TimeDashboard(config, config_path)
     window.show()
 
     sys.exit(app.exec())
