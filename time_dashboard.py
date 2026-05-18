@@ -4,7 +4,6 @@ import yaml
 from dataclasses import dataclass
 from datetime import datetime, date, time, timedelta
 from pathlib import Path
-import os
 
 from PyQt6.QtCore import QTimer, Qt
 from PyQt6.QtGui import QFont, QFontInfo
@@ -79,6 +78,7 @@ class UIConfig:
     header_font_point_size: int
     class_status_font_point_size: int
     countdown_font_point_size: int
+    background_color: str
 
 
 @dataclass(frozen=True)
@@ -124,6 +124,7 @@ def load_config(path: Path) -> AppConfig:
             ui_raw.get("class_status_font_point_size", 16)
         ),
         countdown_font_point_size=int(ui_raw.get("countdown_font_point_size", 40)),
+        background_color=str(ui_raw.get("background_color", "#f7f2ff")),
     )
 
     classes: dict[str, list[ClassSlot]] = {}
@@ -183,6 +184,81 @@ def apply_application_font(app: QApplication, ui: UIConfig) -> None:
             f"Warning: requested font '{ui.font_family}', "
             f"but Qt selected '{actual_family}'."
         )
+
+
+def apply_application_theme(app: QApplication, ui: UIConfig) -> None:
+    background = ui.background_color
+
+    app.setStyleSheet(
+        f"""
+        QMainWindow {{
+            background-color: {background};
+        }}
+
+        QWidget {{
+            background-color: {background};
+            color: #2f2440;
+        }}
+
+        QLabel {{
+            background-color: transparent;
+            color: #2f2440;
+        }}
+
+        QTableWidget {{
+            background-color: #ffffff;
+            alternate-background-color: #fbf8ff;
+            gridline-color: #d8ccef;
+            border: 1px solid #d8ccef;
+            border-radius: 6px;
+            color: #2f2440;
+        }}
+
+        QTableWidget::item {{
+            padding: 4px;
+        }}
+
+        QTableWidget::item:selected {{
+            background-color: #d8c2ff;
+            color: #2f2440;
+        }}
+
+        QHeaderView::section {{
+            background-color: #eee4ff;
+            color: #2f2440;
+            border: 1px solid #d8ccef;
+            padding: 4px;
+        }}
+
+        QComboBox {{
+            background-color: #ffffff;
+            color: #2f2440;
+            border: 1px solid #cfc1e8;
+            border-radius: 6px;
+            padding: 4px 8px;
+        }}
+
+        QComboBox QAbstractItemView {{
+            background-color: #ffffff;
+            color: #2f2440;
+            selection-background-color: #d8c2ff;
+            selection-color: #2f2440;
+        }}
+
+        QProgressBar {{
+            background-color: #ffffff;
+            color: #2f2440;
+            border: 1px solid #cfc1e8;
+            border-radius: 6px;
+            text-align: center;
+        }}
+
+        QProgressBar::chunk {{
+            background-color: #d8c2ff;
+            border-radius: 6px;
+        }}
+        """
+    )
 
 
 class TimeDashboard(QMainWindow):
@@ -440,12 +516,13 @@ class TimeDashboard(QMainWindow):
 
 
 def main() -> None:
-    config_file = "time_dashboard.yaml"
-    config_path = Path(os.path.join(os.environ["HOME"], config_file))
+    config_path = Path.home() / "time_dashboard.yaml"
     config = load_config(config_path)
 
     app = QApplication(sys.argv)
+
     apply_application_font(app, config.ui)
+    apply_application_theme(app, config.ui)
 
     window = TimeDashboard(config)
     window.show()

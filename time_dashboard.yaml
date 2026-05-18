@@ -1,58 +1,46 @@
-workday_start: "09:00"
-
+workday_start: 09:00
 ui:
-  font_family: "Futura ND Book"
+  font_family: Futura ND Book
   font_point_size: 11
   header_font_point_size: 18
   class_status_font_point_size: 16
   countdown_font_point_size: 40
-
 classes:
   monday:
-    - title: "Game Theory"
-      start: "09:00"
-      end: "10:30"
-    - title: "Design Patterns"
-      start: "13:00"
-      end: "14:30"
-
-  tuesday:
-    - title: "Rust Programming"
-      start: "10:40"
-      end: "12:10"
-
+  - title: Information Technology Practice III
+    start: 09:30
+    end: '11:05'
+  - title: Game Theory a
+    start: '12:40'
+    end: '13:25'
+  tuesday: []
   wednesday:
-    - title: "TDA / Topology"
-      start: "09:00"
-      end: "10:30"
-    - title: "Software Security"
-      start: "14:40"
-      end: "16:10"
-
-  thursday: []
-
+  - title: TDA / Topology
+    start: 09:30
+    end: '11:05'
+  - title: Graduation Research
+    start: '11:10'
+    end: '16:45'
+  thursday:
+  - title: 'Rust Programming: Theory and Practice'
+    start: 09:30
+    end: '11:05'
   friday:
-    - title: "Hardware Security"
-      start: "13:00"
-      end: "14:30"
-
+  - title: Sortware Security
+    start: '11:10'
+    end: '13:25'
   saturday: []
-
   sunday: []
-
 departure_patterns:
   normal:
-    label: "Normal"
-    time: "17:15"
-
+    label: Normal
+    time: '17:15'
   early:
-    label: "Early Leave"
-    time: "16:30"
-
+    label: Early Leave
+    time: '16:30'
   late:
-    label: "Late Work"
-    time: "18:30"
-
+    label: Late Work
+    time: '18:30'
   hard:
-    label: "Long Day"
-    time: "20:00"
+    label: Long Day
+    time: '20:00'

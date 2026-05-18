@@ -8,9 +8,10 @@ from typing import Any
 
 import yaml
 from PyQt6.QtCore import QTime, Qt
-from PyQt6.QtGui import QFont
+from PyQt6.QtGui import QColor, QFont
 from PyQt6.QtWidgets import (
     QApplication,
+    QColorDialog,
     QComboBox,
     QFontComboBox,
     QFormLayout,
@@ -53,6 +54,7 @@ WEEKDAY_LABELS = [
 ]
 
 KEY_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
+HEX_COLOR_PATTERN = re.compile(r"^#[0-9A-Fa-f]{6}$")
 
 
 def default_config() -> dict[str, Any]:
@@ -64,6 +66,7 @@ def default_config() -> dict[str, Any]:
             "header_font_point_size": 18,
             "class_status_font_point_size": 16,
             "countdown_font_point_size": 40,
+            "background_color": "#f7f2ff",
         },
         "classes": {
             "monday": [
@@ -139,6 +142,12 @@ def table_time(table: QTableWidget, row: int, col: int) -> str:
     return "00:00"
 
 
+def is_start_before_end(start: str, end: str) -> bool:
+    start_qt = parse_qtime(start)
+    end_qt = parse_qtime(end)
+    return start_qt.msecsTo(end_qt) > 0
+
+
 class TimeDashboardConfigEditor(QMainWindow):
     def __init__(self, config_path: Path):
         super().__init__()
@@ -156,7 +165,7 @@ class TimeDashboardConfigEditor(QMainWindow):
         self.current_weekday = "monday"
 
         self.setWindowTitle("Time Dashboard Config Editor")
-        self.resize(780, 620)
+        self.resize(820, 640)
 
         self.tabs = QTabWidget()
 
@@ -265,16 +274,29 @@ class TimeDashboardConfigEditor(QMainWindow):
         self.countdown_font_size_spin = QSpinBox()
         self.countdown_font_size_spin.setRange(8, 160)
 
+        self.background_color_edit = QLineEdit()
+        self.background_color_edit.setPlaceholderText("#f7f2ff")
+
+        choose_color_button = QPushButton("Choose Color")
+        choose_color_button.clicked.connect(self.choose_background_color)
+
+        color_row = QHBoxLayout()
+        color_row.addWidget(self.background_color_edit)
+        color_row.addWidget(choose_color_button)
+
         form.addRow("Workday Start:", self.workday_start_edit)
         form.addRow("Font Family:", font_row)
         form.addRow("Base Font Size:", self.font_point_size_spin)
         form.addRow("Header Font Size:", self.header_font_size_spin)
         form.addRow("Class Status Font Size:", self.class_status_font_size_spin)
         form.addRow("Countdown Font Size:", self.countdown_font_size_spin)
+        form.addRow("Background Color:", color_row)
 
         note = QLabel(
             "Font family should match a font name recognized by Qt/fontconfig. "
-            "On Linux, you can check names with fc-list or fc-match."
+            "On Linux, you can check names with fc-list or fc-match.\n\n"
+            "Background color should be a hex RGB value such as #f7f2ff. "
+            "Use a very light color for better readability."
         )
         note.setWordWrap(True)
 
@@ -306,9 +328,27 @@ class TimeDashboardConfigEditor(QMainWindow):
         self.countdown_font_size_spin.setValue(
             int(ui.get("countdown_font_point_size", 40))
         )
+        self.background_color_edit.setText(
+            str(ui.get("background_color", "#f7f2ff"))
+        )
 
     def copy_selected_font_name(self) -> None:
         self.font_family_edit.setText(self.font_combo.currentFont().family())
+
+    def choose_background_color(self) -> None:
+        current = self.background_color_edit.text().strip()
+
+        if not HEX_COLOR_PATTERN.match(current):
+            current = "#f7f2ff"
+
+        color = QColorDialog.getColor(
+            QColor(current),
+            self,
+            "Select Background Color",
+        )
+
+        if color.isValid():
+            self.background_color_edit.setText(color.name())
 
     # ------------------------------------------------------------------
     # Classes tab
@@ -391,7 +431,10 @@ class TimeDashboardConfigEditor(QMainWindow):
         self.class_table.setItem(row, 2, QTableWidgetItem(title))
 
     def remove_selected_class_rows(self) -> None:
-        rows = sorted({idx.row() for idx in self.class_table.selectedIndexes()}, reverse=True)
+        rows = sorted(
+            {idx.row() for idx in self.class_table.selectedIndexes()},
+            reverse=True,
+        )
 
         for row in rows:
             self.class_table.removeRow(row)
@@ -413,13 +456,10 @@ class TimeDashboardConfigEditor(QMainWindow):
                         f"Class title is empty in {self.current_weekday}, row {row + 1}."
                     )
 
-                start_qt = parse_qtime(start)
-                end_qt = parse_qtime(end)
-
-                if start_qt >= end_qt:
+                if not is_start_before_end(start, end):
                     raise ValueError(
                         f"Invalid class time in {self.current_weekday}, row {row + 1}: "
-                        f"start time must be earlier than end time."
+                        "start time must be earlier than end time."
                     )
 
             rows.append({"title": title, "start": start, "end": end})
@@ -508,6 +548,7 @@ class TimeDashboardConfigEditor(QMainWindow):
         }
 
         base = "new_pattern"
+
         if base not in existing:
             return base
 
@@ -519,7 +560,8 @@ class TimeDashboardConfigEditor(QMainWindow):
 
     def remove_selected_departure_rows(self) -> None:
         rows = sorted(
-            {idx.row() for idx in self.departure_table.selectedIndexes()}, reverse=True
+            {idx.row() for idx in self.departure_table.selectedIndexes()},
+            reverse=True,
         )
 
         for row in rows:
@@ -546,9 +588,7 @@ class TimeDashboardConfigEditor(QMainWindow):
                 raise ValueError(f"Duplicate departure pattern key: {key}")
 
             if not label:
-                raise ValueError(
-                    f"Departure pattern label is empty for key '{key}'."
-                )
+                raise ValueError(f"Departure pattern label is empty for key '{key}'.")
 
             patterns[key] = {"label": label, "time": time_value}
 
@@ -563,6 +603,13 @@ class TimeDashboardConfigEditor(QMainWindow):
 
     def build_config(self) -> dict[str, Any]:
         self.store_current_weekday_table()
+
+        background_color = self.background_color_edit.text().strip()
+
+        if not HEX_COLOR_PATTERN.match(background_color):
+            raise ValueError(
+                "Invalid background color. Use a hex RGB value such as #f7f2ff."
+            )
 
         classes: dict[str, list[dict[str, str]]] = {}
 
@@ -580,6 +627,7 @@ class TimeDashboardConfigEditor(QMainWindow):
                 "header_font_point_size": self.header_font_size_spin.value(),
                 "class_status_font_point_size": self.class_status_font_size_spin.value(),
                 "countdown_font_point_size": self.countdown_font_size_spin.value(),
+                "background_color": background_color,
             },
             "classes": classes,
             "departure_patterns": self.read_departure_patterns(),
@@ -596,10 +644,7 @@ class TimeDashboardConfigEditor(QMainWindow):
             if not title:
                 raise ValueError(f"Class title is empty in {weekday}, row {i}.")
 
-            start_qt = parse_qtime(start)
-            end_qt = parse_qtime(end)
-
-            if start_qt >= end_qt:
+            if not is_start_before_end(start, end):
                 raise ValueError(
                     f"Invalid class time in {weekday}, row {i}: "
                     "start time must be earlier than end time."
