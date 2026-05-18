@@ -355,10 +355,13 @@ class TimeDashboard(QMainWindow):
         self.today_slots: list[ClassSlot] = []
 
         self.setWindowTitle("Time Dashboard")
-        self.resize(640, 520)
+        self.resize(640, 600)
 
         self.date_label = QLabel()
         self.date_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        self.current_time_label = QLabel()
+        self.current_time_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self.class_table = QTableWidget()
         self.class_table.setColumnCount(3)
@@ -375,7 +378,11 @@ class TimeDashboard(QMainWindow):
 
         self.schedule_tabs = QTabWidget()
         self.schedule_tabs.addTab(
-            self.create_schedule_table_tab(self.class_table),
+            self.create_schedule_table_tab(
+                self.class_table,
+                header_label=self.date_label,
+                sub_header_label=self.current_time_label,
+            ),
             "Today’s Classes",
         )
         self.schedule_tabs.addTab(
@@ -422,8 +429,6 @@ class TimeDashboard(QMainWindow):
         pattern_row.addWidget(self.reload_button)
 
         layout = QVBoxLayout()
-        layout.addWidget(self.date_label)
-
         layout.addWidget(self.schedule_tabs)
 
         layout.addWidget(QLabel("Class Status"))
@@ -461,12 +466,16 @@ class TimeDashboard(QMainWindow):
         table: QTableWidget,
         *,
         header_label: QLabel | None = None,
+        sub_header_label: QLabel | None = None,
     ) -> QWidget:
         tab = QWidget()
         layout = QVBoxLayout()
 
         if header_label is not None:
             layout.addWidget(header_label)
+
+        if sub_header_label is not None:
+            layout.addWidget(sub_header_label)
 
         layout.addWidget(table)
         tab.setLayout(layout)
@@ -475,6 +484,9 @@ class TimeDashboard(QMainWindow):
     def apply_ui_sizes(self) -> None:
         self.date_label.setStyleSheet(
             f"font-size: {self.config.ui.header_font_point_size}pt;"
+        )
+        self.current_time_label.setStyleSheet(
+            f"font-size: {max(8, self.config.ui.header_font_point_size // 2)}pt;"
         )
         self.next_day_date_label.setStyleSheet(
             f"font-size: {self.config.ui.font_point_size + 2}pt;"
@@ -593,6 +605,7 @@ class TimeDashboard(QMainWindow):
 
     def update_time_display(self) -> None:
         now = datetime.now()
+        self.update_current_time_label(now)
 
         # Refresh the table if the application remains open across midnight.
         if now.date() != self.current_date:
@@ -603,6 +616,9 @@ class TimeDashboard(QMainWindow):
         self.update_departure_countdown(now)
         self.update_workday_progress(now)
         self.update_class_status(now)
+
+    def update_current_time_label(self, now: datetime) -> None:
+        self.current_time_label.setText(f"Current time: {now.strftime('%H:%M:%S')}")
 
     def update_departure_countdown(self, now: datetime) -> None:
         pattern = self.current_departure_pattern()
