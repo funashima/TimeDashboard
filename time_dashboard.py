@@ -18,6 +18,7 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QTableWidget,
     QTableWidgetItem,
+    QTabWidget,
     QVBoxLayout,
     QWidget,
 )
@@ -105,6 +106,31 @@ def format_timedelta(delta: timedelta) -> str:
     minutes = (total % 3600) // 60
     seconds = total % 60
     return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+
+
+def next_school_day(d: date) -> date:
+    """Return the next weekday used as the next teaching day.
+
+    Monday through Thursday show the following day.
+    Friday, Saturday, and Sunday show the next Monday, because weekend
+    schedules are not useful for ordinary class preparation.
+    """
+
+    weekday_index = d.weekday()
+
+    if weekday_index <= 3:  # Monday through Thursday
+        return d + timedelta(days=1)
+
+    days_until_monday = 7 - weekday_index
+    return d + timedelta(days=days_until_monday)
+
+
+def format_date_label(d: date) -> str:
+    weekday_index = d.weekday()
+    return (
+        f"{WEEKDAY_LABELS[weekday_index]}, "
+        f"{MONTH_LABELS[d.month - 1]} {d.day}, {d.year}"
+    )
 
 
 def load_config(path: Path) -> AppConfig:
@@ -215,6 +241,31 @@ def apply_application_theme(app: QApplication, ui: UIConfig) -> None:
             {font_family_rule}
         }}
 
+        QTabWidget::pane {{
+            border: 1px solid #d8ccef;
+            border-radius: 6px;
+            top: -1px;
+        }}
+
+        QTabBar::tab {{
+            background-color: #ffffff;
+            color: #2f2440;
+            border: 1px solid #cfc1e8;
+            border-bottom: none;
+            border-top-left-radius: 6px;
+            border-top-right-radius: 6px;
+            padding: 6px 12px;
+            {font_family_rule}
+        }}
+
+        QTabBar::tab:selected {{
+            background-color: #eee4ff;
+        }}
+
+        QTabBar::tab:!selected {{
+            margin-top: 2px;
+        }}
+
         QTableWidget {{
             background-color: #ffffff;
             alternate-background-color: #fbf8ff;
@@ -314,6 +365,27 @@ class TimeDashboard(QMainWindow):
         self.class_table.setHorizontalHeaderLabels(["Start", "End", "Class"])
         self.class_table.horizontalHeader().setStretchLastSection(True)
 
+        self.next_day_date_label = QLabel()
+        self.next_day_date_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        self.next_day_table = QTableWidget()
+        self.next_day_table.setColumnCount(3)
+        self.next_day_table.setHorizontalHeaderLabels(["Start", "End", "Class"])
+        self.next_day_table.horizontalHeader().setStretchLastSection(True)
+
+        self.schedule_tabs = QTabWidget()
+        self.schedule_tabs.addTab(
+            self.create_schedule_table_tab(self.class_table),
+            "Today’s Classes",
+        )
+        self.schedule_tabs.addTab(
+            self.create_schedule_table_tab(
+                self.next_day_table,
+                header_label=self.next_day_date_label,
+            ),
+            "Schedule on next day",
+        )
+
         self.pattern_combo = QComboBox()
         for key, pattern in self.config.departure_patterns.items():
             self.pattern_combo.addItem(pattern.label, key)
@@ -352,8 +424,7 @@ class TimeDashboard(QMainWindow):
         layout = QVBoxLayout()
         layout.addWidget(self.date_label)
 
-        layout.addWidget(QLabel("Today’s Classes"))
-        layout.addWidget(self.class_table)
+        layout.addWidget(self.schedule_tabs)
 
         layout.addWidget(QLabel("Class Status"))
         layout.addWidget(self.current_class_label)
@@ -376,6 +447,7 @@ class TimeDashboard(QMainWindow):
         self.apply_ui_sizes()
         self.set_config_status_loaded(datetime.now())
         self.populate_today_classes()
+        self.populate_next_school_day_classes()
 
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update_time_display)
@@ -384,9 +456,28 @@ class TimeDashboard(QMainWindow):
         self.pattern_combo.currentIndexChanged.connect(self.update_time_display)
         self.update_time_display()
 
+    def create_schedule_table_tab(
+        self,
+        table: QTableWidget,
+        *,
+        header_label: QLabel | None = None,
+    ) -> QWidget:
+        tab = QWidget()
+        layout = QVBoxLayout()
+
+        if header_label is not None:
+            layout.addWidget(header_label)
+
+        layout.addWidget(table)
+        tab.setLayout(layout)
+        return tab
+
     def apply_ui_sizes(self) -> None:
         self.date_label.setStyleSheet(
             f"font-size: {self.config.ui.header_font_point_size}pt;"
+        )
+        self.next_day_date_label.setStyleSheet(
+            f"font-size: {self.config.ui.font_point_size + 2}pt;"
         )
         self.current_class_label.setStyleSheet(
             f"font-size: {self.config.ui.class_status_font_point_size}pt;"
@@ -443,6 +534,7 @@ class TimeDashboard(QMainWindow):
         self.apply_ui_sizes()
         self.rebuild_departure_patterns(str(previous_key) if previous_key else None)
         self.populate_today_classes()
+        self.populate_next_school_day_classes()
         self.set_config_status_loaded(datetime.now())
         self.update_time_display()
 
@@ -452,33 +544,52 @@ class TimeDashboard(QMainWindow):
 
     def populate_today_classes(self) -> None:
         today = self.current_date
-        weekday_index = today.weekday()
-        weekday_key = WEEKDAY_KEYS[weekday_index]
+        weekday_key = WEEKDAY_KEYS[today.weekday()]
 
-        self.date_label.setText(
-            f"{WEEKDAY_LABELS[weekday_index]}, "
-            f"{MONTH_LABELS[today.month - 1]} {today.day}, {today.year}"
+        self.date_label.setText(format_date_label(today))
+        self.today_slots = self.config.classes.get(weekday_key, [])
+        self.populate_schedule_table(
+            self.class_table,
+            self.today_slots,
+            empty_message="No classes today",
         )
 
-        self.today_slots = self.config.classes.get(weekday_key, [])
+    def populate_next_school_day_classes(self) -> None:
+        target_date = next_school_day(self.current_date)
+        weekday_key = WEEKDAY_KEYS[target_date.weekday()]
+        slots = self.config.classes.get(weekday_key, [])
 
-        if not self.today_slots:
-            self.class_table.setRowCount(1)
-            self.class_table.setItem(0, 0, QTableWidgetItem("-"))
-            self.class_table.setItem(0, 1, QTableWidgetItem("-"))
-            self.class_table.setItem(0, 2, QTableWidgetItem("No classes today"))
+        self.next_day_date_label.setText(
+            f"Next class day: {format_date_label(target_date)}"
+        )
+        self.populate_schedule_table(
+            self.next_day_table,
+            slots,
+            empty_message="No classes on the next class day",
+        )
+
+    def populate_schedule_table(
+        self,
+        table: QTableWidget,
+        slots: list[ClassSlot],
+        *,
+        empty_message: str,
+    ) -> None:
+        table.clearContents()
+
+        if not slots:
+            table.setRowCount(1)
+            table.setItem(0, 0, QTableWidgetItem("-"))
+            table.setItem(0, 1, QTableWidgetItem("-"))
+            table.setItem(0, 2, QTableWidgetItem(empty_message))
             return
 
-        self.class_table.setRowCount(len(self.today_slots))
+        table.setRowCount(len(slots))
 
-        for row, slot in enumerate(self.today_slots):
-            self.class_table.setItem(
-                row, 0, QTableWidgetItem(slot.start.strftime("%H:%M"))
-            )
-            self.class_table.setItem(
-                row, 1, QTableWidgetItem(slot.end.strftime("%H:%M"))
-            )
-            self.class_table.setItem(row, 2, QTableWidgetItem(slot.title))
+        for row, slot in enumerate(slots):
+            table.setItem(row, 0, QTableWidgetItem(slot.start.strftime("%H:%M")))
+            table.setItem(row, 1, QTableWidgetItem(slot.end.strftime("%H:%M")))
+            table.setItem(row, 2, QTableWidgetItem(slot.title))
 
     def update_time_display(self) -> None:
         now = datetime.now()
@@ -487,6 +598,7 @@ class TimeDashboard(QMainWindow):
         if now.date() != self.current_date:
             self.current_date = now.date()
             self.populate_today_classes()
+            self.populate_next_school_day_classes()
 
         self.update_departure_countdown(now)
         self.update_workday_progress(now)
