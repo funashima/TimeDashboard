@@ -14,12 +14,15 @@ The application is intentionally simple. It is not a calendar system, a task man
 - Allows selecting a departure pattern
 - Displays a countdown until the selected departure time
 - Displays progress from the workday start time to the selected departure time
-- Uses a YAML configuration file
+- Uses a YAML configuration file located at `~/time_dashboard.yaml`
 - Supports custom UI font settings
+- Includes a dedicated PyQt6 configuration editor
+- Allows editing class schedules, departure patterns, and UI settings without manually editing YAML
+- Creates timestamped backups before overwriting an existing configuration file
+- Validates class times and departure pattern keys before saving
 
 ## Screenshot
-
-Add a screenshot here if desired.
+![Time Dashboard screenshot](screenshot01.png)
 
 ```text
 Monday, May 18, 2026
@@ -54,7 +57,7 @@ pip install PyQt6 PyYAML
 
 ## Usage
 
-Place `time_dashboard.py` and `time_dashboard.yaml` in the same directory.
+Place `time_dashboard.yaml` in your home directory.
 
 Run:
 
@@ -66,6 +69,11 @@ The application reads its settings from:
 
 ```text
 ~/time_dashboard.yaml
+```
+
+If you set your configuration using editor,
+```bash
+python time_dashboard_editor.py
 ```
 
 ## Configuration
