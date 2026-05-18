@@ -189,20 +189,28 @@ def apply_application_font(app: QApplication, ui: UIConfig) -> None:
 def apply_application_theme(app: QApplication, ui: UIConfig) -> None:
     background = ui.background_color
 
+    font_family_rule = ""
+    if ui.font_family:
+        escaped_font_family = ui.font_family.replace('"', '\\"')
+        font_family_rule = f'font-family: "{escaped_font_family}";'
+
     app.setStyleSheet(
         f"""
         QMainWindow {{
             background-color: {background};
+            {font_family_rule}
         }}
 
         QWidget {{
             background-color: {background};
             color: #2f2440;
+            {font_family_rule}
         }}
 
         QLabel {{
             background-color: transparent;
             color: #2f2440;
+            {font_family_rule}
         }}
 
         QTableWidget {{
@@ -212,10 +220,12 @@ def apply_application_theme(app: QApplication, ui: UIConfig) -> None:
             border: 1px solid #d8ccef;
             border-radius: 6px;
             color: #2f2440;
+            {font_family_rule}
         }}
 
         QTableWidget::item {{
             padding: 4px;
+            {font_family_rule}
         }}
 
         QTableWidget::item:selected {{
@@ -228,6 +238,7 @@ def apply_application_theme(app: QApplication, ui: UIConfig) -> None:
             color: #2f2440;
             border: 1px solid #d8ccef;
             padding: 4px;
+            {font_family_rule}
         }}
 
         QComboBox {{
@@ -236,6 +247,7 @@ def apply_application_theme(app: QApplication, ui: UIConfig) -> None:
             border: 1px solid #cfc1e8;
             border-radius: 6px;
             padding: 4px 8px;
+            {font_family_rule}
         }}
 
         QComboBox QAbstractItemView {{
@@ -243,6 +255,7 @@ def apply_application_theme(app: QApplication, ui: UIConfig) -> None:
             color: #2f2440;
             selection-background-color: #d8c2ff;
             selection-color: #2f2440;
+            {font_family_rule}
         }}
 
         QProgressBar {{
@@ -251,6 +264,7 @@ def apply_application_theme(app: QApplication, ui: UIConfig) -> None:
             border: 1px solid #cfc1e8;
             border-radius: 6px;
             text-align: center;
+            {font_family_rule}
         }}
 
         QProgressBar::chunk {{
