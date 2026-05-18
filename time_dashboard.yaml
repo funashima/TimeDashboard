@@ -1,0 +1,58 @@
+workday_start: "09:00"
+
+ui:
+  font_family: "Futura ND Book"
+  font_point_size: 11
+  header_font_point_size: 18
+  class_status_font_point_size: 16
+  countdown_font_point_size: 40
+
+classes:
+  monday:
+    - title: "Game Theory"
+      start: "09:00"
+      end: "10:30"
+    - title: "Design Patterns"
+      start: "13:00"
+      end: "14:30"
+
+  tuesday:
+    - title: "Rust Programming"
+      start: "10:40"
+      end: "12:10"
+
+  wednesday:
+    - title: "TDA / Topology"
+      start: "09:00"
+      end: "10:30"
+    - title: "Software Security"
+      start: "14:40"
+      end: "16:10"
+
+  thursday: []
+
+  friday:
+    - title: "Hardware Security"
+      start: "13:00"
+      end: "14:30"
+
+  saturday: []
+
+  sunday: []
+
+departure_patterns:
+  normal:
+    label: "Normal"
+    time: "17:15"
+
+  early:
+    label: "Early Leave"
+    time: "16:30"
+
+  late:
+    label: "Late Work"
+    time: "18:30"
+
+  hard:
+    label: "Long Day"
+    time: "20:00"
